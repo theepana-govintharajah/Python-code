@@ -137,7 +137,6 @@ def sarsa_control_epsilon_greedy(
     num_episodes=30000,
     gamma=0.99,
     alpha=0.10,
-    # You can use fixed epsilon OR decay:
     epsilon=0.10,
     use_epsilon_decay=False,
     epsilon_start=1.0,
@@ -152,7 +151,6 @@ def sarsa_control_epsilon_greedy(
     """
     SARSA (on-policy TD control) with epsilon-greedy behavior policy.
 
-    Matches the slide:
       Initialize S
       Choose A ~ pi(.|S) (epsilon-greedy from Q)
       Repeat:
@@ -162,9 +160,6 @@ def sarsa_control_epsilon_greedy(
         S <- S', A <- A'
       until terminal
 
-    Notes:
-    - Deterministic transitions (your env) still needs exploration due to sparse reward.
-    - Random tie-breaking removes action-index bias.
     """
     rng = random.Random(seed)
 
@@ -219,7 +214,6 @@ def sarsa_control_epsilon_greedy(
             sr = evaluate_greedy_policy(env, Q, episodes=200, max_steps=max_steps_per_episode, seed=seed + ep)
             print("[SARSA] episode={} | eps={:.4f} | greedy success_rate={:.3f}".format(ep, eps_t, sr))
 
-    # Policy (optional): epsilon-soft at the end (mostly not used; you evaluate greedy anyway)
     final_eps = float(epsilon_min if use_epsilon_decay else epsilon)
     policy = []
     for s in range(nS):

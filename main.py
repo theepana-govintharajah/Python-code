@@ -8,6 +8,7 @@ from frozen_lake_env import FrozenLakeEnv as FrozenLakeEnvDet, generate_random_s
 # Probabilistic environment
 from environment_probablistic import FrozenLakeEnv as FrozenLakeEnvProb
 
+# Renderer for Frozen Lake GUI
 from frozen_lake_render import FrozenLakeMatplotlibRenderer
 
 # ---- Original MC implementation ----
@@ -27,7 +28,6 @@ from monte_carlo_update import (
 )
 
 # ---- SARSA (Task 2) ----
-# NOTE: your file is named "sarsa.py" based on this import.
 from sarsa import (
     sarsa_control_epsilon_greedy as sarsa_control_up,
     greedy_action as greedy_action_sarsa,
