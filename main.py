@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Deterministic environment
 from frozen_lake_env import FrozenLakeEnv as FrozenLakeEnvDet, generate_random_solvable_holes
 
-# Probabilistic environment
+# Probabilistic environment (slippery)
 from environment_probablistic import FrozenLakeEnv as FrozenLakeEnvProb
 
 # Renderer for Frozen Lake GUI
@@ -462,7 +462,6 @@ def main(mode: str):
             greedy_action_fn=greedy_action_sarsa,
             print_policy_fn=print_policy_sarsa,
             eval_fn=eval_greedy_sarsa,
-            # Keep it simple first; fixed epsilon is fine on 4x4
             sarsa_kwargs={
                 "epsilon": 0.10,
                 "use_epsilon_decay": False,
@@ -479,6 +478,7 @@ def main(mode: str):
             env_kwargs={}
         )
 
+   
     elif mode == "detSARSA10":
         run_sarsa_experiment(
             env_class=FrozenLakeEnvDet,
@@ -489,7 +489,6 @@ def main(mode: str):
             greedy_action_fn=greedy_action_sarsa,
             print_policy_fn=print_policy_sarsa,
             eval_fn=eval_greedy_sarsa,
-            # On 10x10, fixed epsilon often fails; start higher then decay
             sarsa_kwargs={
                 "use_epsilon_decay": True,
                 "epsilon_start": 0.6,
@@ -510,26 +509,167 @@ def main(mode: str):
             env_kwargs={}
         )
 
+    elif mode == "detSARSA10-smallEps":
+        run_sarsa_experiment(
+            env_class=FrozenLakeEnvDet,
+            n=10,
+            holes=holes_10x10,
+            env_seed=123,
+            sarsa_control_fn=sarsa_control_up,
+            greedy_action_fn=greedy_action_sarsa,
+            print_policy_fn=print_policy_sarsa,
+            eval_fn=eval_greedy_sarsa,
+            sarsa_kwargs={
+                "use_epsilon_decay": True,
+                "epsilon_start": 0.4,
+                "epsilon_min": 0.3,
+                "epsilon_decay_type": "exp",
+                "epsilon_decay_rate": 0.6,
+                "epsilon_decay_fraction": 0.6
+            },
+            train_episodes=80000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=300,
+            eval_episodes=2000,
+            max_steps_eval=300,
+            verbose_every=10000,
+            render_one_episode=True,
+            render_pause=0.10,
+            env_kwargs={}
+        )
+
+
+    elif mode == "probSARSA4":
+        run_sarsa_experiment(
+            env_class=FrozenLakeEnvProb,
+            n=4,
+            holes=holes_4x4,
+            env_seed=40,
+            sarsa_control_fn=sarsa_control_up,
+            greedy_action_fn=greedy_action_sarsa,
+            print_policy_fn=print_policy_sarsa,
+            eval_fn=eval_greedy_sarsa,
+            sarsa_kwargs={
+                "epsilon": 0.10,
+                "use_epsilon_decay": False,
+            },
+            train_episodes=30000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=100,
+            eval_episodes=2000,
+            max_steps_eval=100,
+            verbose_every=3000,
+            render_one_episode=True,
+            render_pause=0.30,
+            env_kwargs={"slip_prob": 0.2}
+        )
+
+    # (Notebook) Probabilistic 10x10, exp decay: start=0.3 -> min=0.1
+    elif mode == "probSARSA10":
+        run_sarsa_experiment(
+            env_class=FrozenLakeEnvProb,
+            n=10,
+            holes=holes_10x10,
+            env_seed=123,
+            sarsa_control_fn=sarsa_control_up,
+            greedy_action_fn=greedy_action_sarsa,
+            print_policy_fn=print_policy_sarsa,
+            eval_fn=eval_greedy_sarsa,
+            sarsa_kwargs={
+                "use_epsilon_decay": True,
+                "epsilon_start": 0.3,
+                "epsilon_min": 0.1,
+                "epsilon_decay_type": "exp",
+                "epsilon_decay_rate": 0.6,
+                "epsilon_decay_fraction": 0.6
+            },
+            train_episodes=80000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=300,
+            eval_episodes=2000,
+            max_steps_eval=300,
+            verbose_every=10000,
+            render_one_episode=True,
+            render_pause=0.10,
+            env_kwargs={"slip_prob": 0.2}
+        )
+
+    # (Notebook) Probabilistic 10x10, longer training: 160k episodes, start=0.25 -> min=0.1
+    elif mode == "probSARSA10-long":
+        run_sarsa_experiment(
+            env_class=FrozenLakeEnvProb,
+            n=10,
+            holes=holes_10x10,
+            env_seed=123,
+            sarsa_control_fn=sarsa_control_up,
+            greedy_action_fn=greedy_action_sarsa,
+            print_policy_fn=print_policy_sarsa,
+            eval_fn=eval_greedy_sarsa,
+            sarsa_kwargs={
+                "use_epsilon_decay": True,
+                "epsilon_start": 0.25,
+                "epsilon_min": 0.1,
+                "epsilon_decay_type": "exp",
+                "epsilon_decay_rate": 0.6,
+                "epsilon_decay_fraction": 0.6
+            },
+            train_episodes=160000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=300,
+            eval_episodes=2000,
+            max_steps_eval=300,
+            verbose_every=20000,
+            render_one_episode=True,
+            render_pause=0.10,
+            env_kwargs={"slip_prob": 0.2}
+        )
+
     else:
         print("Invalid mode:", mode)
-        print(
-            "Valid modes:\n"
-            "  detMC4 | detMC10 | probMC4 | probMC10 | probMC4-moreTrain\n"
-            "  detMCup4 | detMCup10 | probMCup4 | probMCup10\n"
-            "  detSARSA4 | detSARSA10"
-        )
+        print("Valid modes:\n" + "\n".join([
+            "  detMC4",
+            "  detMC10",
+            "  probMC4",
+            "  probMC4-moreTrain",
+            "  probMC10",
+            "  detMCup4",
+            "  detMCup10",
+            "  probMCup4",
+            "  probMCup10",
+            "  detSARSA4",
+            "  detSARSA10",
+            "  detSARSA10-smallEps",
+            "  probSARSA4",
+            "  probSARSA10",
+            "  probSARSA10-long",
+        ]))
         sys.exit(1)
 
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("Usage: python main.py <mode>")
-        print(
-            "Modes:\n"
-            "  detMC4 | detMC10 | probMC4 | probMC10 | probMC4-moreTrain\n"
-            "  detMCup4 | detMCup10 | probMCup4 | probMCup10\n"
-            "  detSARSA4 | detSARSA10"
-        )
+        print("Modes:\n" + "\n".join([
+            "  detMC4",
+            "  detMC10",
+            "  probMC4",
+            "  probMC4-moreTrain",
+            "  probMC10",
+            "  detMCup4",
+            "  detMCup10",
+            "  probMCup4",
+            "  probMCup10",
+            "  detSARSA4",
+            "  detSARSA10",
+            "  detSARSA10-smallEps",
+            "  probSARSA4",
+            "  probSARSA10",
+            "  probSARSA10-long",
+        ]))
         sys.exit(1)
 
     main(sys.argv[1])
