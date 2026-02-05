@@ -18,10 +18,26 @@ def _argmax_random_tie(q_row, rng):
     return rng.choice(best_actions)
 
 
+def _argmax_fixed_tie(q_row):
+    """
+    Deterministic argmax (NO randomness, NO exploration).
+    Tie-break rule: smallest action index among max-Q.
+    """
+    best_a = 0
+    best_q = q_row[0]
+    for a in range(1, len(q_row)):
+        qa = q_row[a]
+        if qa > best_q:
+            best_q = qa
+            best_a = a
+    return best_a
+
+
 def _epsilon_soft_probs(q_row, epsilon, rng):
     """
     Epsilon-soft distribution derived from Q(s,:),
     with RANDOM tie-breaking for the greedy action.
+    (Used ONLY during training / behavior policy.)
     """
     nA = len(q_row)
     best_a = _argmax_random_tie(q_row, rng)
@@ -76,27 +92,43 @@ def _epsilon_by_episode(
     return eps_min + (eps_start - eps_min) * (2.718281828459045 ** (-float(decay_rate) * t))
 
 
+# --------------------------
+# TRAINING helper
+# --------------------------
 def greedy_action(Q_s, rng=None):
     """
     Greedy action with RANDOM tie-breaking.
+    Used DURING TRAINING only (for epsilon-soft policy).
     """
     if rng is None:
         rng = random.Random()
     return _argmax_random_tie(Q_s, rng)
 
 
+# --------------------------
+# EVALUATION 
+# --------------------------
 def evaluate_greedy_policy(env, Q, episodes=200, max_steps=200, seed=123):
     """
-    Evaluate greedy policy induced by Q with random tie-breaking.
+    Evaluate PURE greedy policy induced by Q:
+      - NO exploration
+      - NO random tie-breaking (fixed argmax)
     Success = reaching goal (reward +1).
-    """
-    rng = random.Random(seed)
-    success = 0
 
+    IMPORTANT:
+    If env is probabilistic (slippery), results can still vary due to env stochasticity.
+    This function removes *policy* randomness, not environment randomness.
+    """
+    try:
+        env.seed(seed)
+    except Exception:
+        pass
+
+    success = 0
     for _ in range(episodes):
         s = env.reset()
         for _ in range(max_steps):
-            a = greedy_action(Q[s], rng=rng)
+            a = _argmax_fixed_tie(Q[s])  # deterministic greedy
             ns, r, done, _ = env.step(a)
             s = ns
             if done:
@@ -107,11 +139,11 @@ def evaluate_greedy_policy(env, Q, episodes=200, max_steps=200, seed=123):
     return success / float(episodes)
 
 
-def print_greedy_policy_grid(env, Q, seed=0):
+def print_greedy_policy_grid(env, Q):
     """
-    Print best action at each cell (random tie-breaking).
+    Print best action at each cell with PURE greedy, deterministic tie-break.
+    This matches evaluate_greedy_policy().
     """
-    rng = random.Random(seed)
     n = env.n
     arrows = {env.LEFT: "L", env.DOWN: "D", env.RIGHT: "R", env.UP: "U"}
 
@@ -127,7 +159,7 @@ def print_greedy_policy_grid(env, Q, seed=0):
                 row.append("H")
             else:
                 s = env.pos_to_state(pos)
-                a = greedy_action(Q[s], rng=rng)
+                a = _argmax_fixed_tie(Q[s])  # deterministic greedy
                 row.append(arrows[a])
         print(" ".join(row))
 
@@ -152,14 +184,13 @@ def sarsa_control_epsilon_greedy(
     SARSA (on-policy TD control) with epsilon-greedy behavior policy.
 
       Initialize S
-      Choose A ~ pi(.|S) (epsilon-greedy from Q)
+      Choose A ~ pi(.|S) (epsilon-greedy from Q)  [uses RANDOM tie-breaking]
       Repeat:
         Take A, observe R, S'
-        Choose A' ~ pi(.|S')
+        Choose A' ~ pi(.|S')                      [uses RANDOM tie-breaking]
         Q(S,A) <- Q(S,A) + alpha * [ R + gamma*Q(S',A') - Q(S,A) ]
         S <- S', A <- A'
       until terminal
-
     """
     rng = random.Random(seed)
 
@@ -170,7 +201,7 @@ def sarsa_control_epsilon_greedy(
     Q = [[0.0 for _ in range(nA)] for _ in range(nS)]
 
     for ep in range(1, num_episodes + 1):
-        # epsilon schedule
+        # epsilon schedule (training only)
         if use_epsilon_decay:
             eps_t = _epsilon_by_episode(
                 ep_idx=ep,
@@ -186,7 +217,7 @@ def sarsa_control_epsilon_greedy(
 
         s = env.reset()
 
-        # Choose initial action A from S using epsilon-greedy derived from Q
+        # Choose initial action A from S using epsilon-soft derived from Q (RANDOM tie-break for greedy)
         probs = _epsilon_soft_probs(Q[s], eps_t, rng)
         a = _sample_from_probs(rng, probs)
 
@@ -199,7 +230,7 @@ def sarsa_control_epsilon_greedy(
                 Q[s][a] += alpha * (td_target - Q[s][a])
                 break
 
-            # Choose A' from S' using same epsilon-greedy behavior policy
+            # Choose A' from S' using same epsilon-soft behavior policy (RANDOM tie-break for greedy)
             probs2 = _epsilon_soft_probs(Q[ns], eps_t, rng)
             a2 = _sample_from_probs(rng, probs2)
 
@@ -211,7 +242,10 @@ def sarsa_control_epsilon_greedy(
             s, a = ns, a2
 
         if verbose_every is not None and ep % int(verbose_every) == 0:
-            sr = evaluate_greedy_policy(env, Q, episodes=200, max_steps=max_steps_per_episode, seed=seed + ep)
+            # IMPORTANT: evaluation uses PURE greedy fixed argmax (no randomness)
+            sr = evaluate_greedy_policy(
+                env, Q, episodes=200, max_steps=max_steps_per_episode, seed=seed + ep
+            )
             print("[SARSA] episode={} | eps={:.4f} | greedy success_rate={:.3f}".format(ep, eps_t, sr))
 
     final_eps = float(epsilon_min if use_epsilon_decay else epsilon)
