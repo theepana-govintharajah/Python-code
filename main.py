@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 # Deterministic environment
 from frozen_lake_env import FrozenLakeEnv as FrozenLakeEnvDet, generate_random_solvable_holes
 
-# Probabilistic environment 
+# Probabilistic environment
 from environment_probablistic import FrozenLakeEnv as FrozenLakeEnvProb
 
 from frozen_lake_render import FrozenLakeMatplotlibRenderer
@@ -24,6 +24,15 @@ from monte_carlo_update import (
     greedy_action as greedy_action_up,
     print_greedy_policy_grid as print_policy_up,
     evaluate_greedy_policy as eval_greedy_up,
+)
+
+# ---- SARSA (Task 2) ----
+# NOTE: your file is named "sarsa.py" based on this import.
+from sarsa import (
+    sarsa_control_epsilon_greedy as sarsa_control_up,
+    greedy_action as greedy_action_sarsa,
+    print_greedy_policy_grid as print_policy_sarsa,
+    evaluate_greedy_policy as eval_greedy_sarsa,
 )
 
 
@@ -92,7 +101,6 @@ def run_mc_experiment(
     """
     Runs MC control on either deterministic or probabilistic environment,
     depending on env_class passed in.
-
     """
     env_kwargs = env_kwargs or {}
     mc_kwargs = mc_kwargs or {}
@@ -135,13 +143,81 @@ def run_mc_experiment(
         run_episode_with_render(env, Q, renderer, greedy_action_fn, max_steps=max_steps_eval, pause=render_pause)
 
 
+def run_sarsa_experiment(
+    env_class,
+    n,
+    holes,
+    env_seed,
+    sarsa_control_fn,
+    greedy_action_fn,
+    print_policy_fn,
+    eval_fn,
+    sarsa_kwargs=None,
+    # Common experiment settings:
+    train_episodes=30000,
+    gamma=0.99,
+    alpha=0.10,
+    max_steps_train=100,
+    eval_episodes=2000,
+    max_steps_eval=100,
+    verbose_every=3000,
+    render_one_episode=True,
+    render_pause=0.30,
+    env_kwargs=None,
+):
+    """
+    Runs SARSA control on either deterministic or probabilistic environment,
+    depending on env_class passed in.
+    """
+    env_kwargs = env_kwargs or {}
+    sarsa_kwargs = sarsa_kwargs or {}
+
+    print("\n" + "=" * 80)
+    print(f"Running SARSA experiment: grid={n}x{n} | holes={len(holes)} | hole_ratio={len(holes)/(n*n):.2%}")
+    print(f"Environment: {env_class.__name__} | extra_args={env_kwargs}")
+    print(f"SARSA implementation: {sarsa_control_fn.__module__}.{sarsa_control_fn.__name__} | sarsa_kwargs={sarsa_kwargs}")
+    print("=" * 80)
+
+    env = env_class(n=n, holes=holes, seed=env_seed, **env_kwargs)
+
+    # --- Train ---
+    Q, pi = sarsa_control_fn(
+        env,
+        num_episodes=train_episodes,
+        gamma=gamma,
+        alpha=alpha,
+        max_steps_per_episode=max_steps_train,
+        seed=0,
+        verbose_every=verbose_every,
+        **sarsa_kwargs
+    )
+
+    # --- Print policy ---
+    print("\nFinal greedy policy (grid):")
+    print_policy_fn(env, Q)
+
+    # --- Evaluate ---
+    sr = eval_fn(env, Q, episodes=eval_episodes, max_steps=max_steps_eval, seed=999)
+    print(f"\nFinal greedy success rate over {eval_episodes} episodes: {sr:.3f}")
+
+    # --- Render one episode (optional) ---
+    if render_one_episode:
+        renderer = FrozenLakeMatplotlibRenderer(
+            env,
+            bg_image_path=None,
+            pause=render_pause,
+            title=f"FrozenLake {n}x{n} (Greedy after SARSA)"
+        )
+        run_episode_with_render(env, Q, renderer, greedy_action_fn, max_steps=max_steps_eval, pause=render_pause)
+
+
 def main(mode: str):
     mode = mode.strip()
 
     # Task 1: 4x4 fixed holes
     holes_4x4 = {(1, 1), (1, 3), (2, 3), (3, 0)}
 
-    # Task 2: 10x10 random solvable holes (use deterministic generator)
+    # Task 1/2: 10x10 random solvable holes (use deterministic generator)
     holes_10x10 = generate_random_solvable_holes(
         n=10,
         hole_ratio=0.25,
@@ -273,7 +349,6 @@ def main(mode: str):
             greedy_action_fn=greedy_action_up,
             print_policy_fn=print_policy_up,
             eval_fn=eval_greedy_up,
-            # epsilon decay knobs
             mc_kwargs={
                 "epsilon_start": 0.40,
                 "epsilon_min": 0.15,
@@ -319,6 +394,7 @@ def main(mode: str):
             render_pause=0.10,
             env_kwargs={}
         )
+
     elif mode == "probMCup4":
         run_mc_experiment(
             env_class=FrozenLakeEnvProb,
@@ -375,12 +451,72 @@ def main(mode: str):
             env_kwargs={"slip_prob": 0.2}
         )
 
+    # -------------------- SARSA (Task 2) --------------------
+    elif mode == "detSARSA4":
+        run_sarsa_experiment(
+            env_class=FrozenLakeEnvDet,
+            n=4,
+            holes=holes_4x4,
+            env_seed=40,
+            sarsa_control_fn=sarsa_control_up,
+            greedy_action_fn=greedy_action_sarsa,
+            print_policy_fn=print_policy_sarsa,
+            eval_fn=eval_greedy_sarsa,
+            # Keep it simple first; fixed epsilon is fine on 4x4
+            sarsa_kwargs={
+                "epsilon": 0.10,
+                "use_epsilon_decay": False,
+            },
+            train_episodes=30000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=100,
+            eval_episodes=2000,
+            max_steps_eval=100,
+            verbose_every=3000,
+            render_one_episode=True,
+            render_pause=0.30,
+            env_kwargs={}
+        )
+
+    elif mode == "detSARSA10":
+        run_sarsa_experiment(
+            env_class=FrozenLakeEnvDet,
+            n=10,
+            holes=holes_10x10,
+            env_seed=123,
+            sarsa_control_fn=sarsa_control_up,
+            greedy_action_fn=greedy_action_sarsa,
+            print_policy_fn=print_policy_sarsa,
+            eval_fn=eval_greedy_sarsa,
+            # On 10x10, fixed epsilon often fails; start higher then decay
+            sarsa_kwargs={
+                "use_epsilon_decay": True,
+                "epsilon_start": 0.6,
+                "epsilon_min": 0.2,
+                "epsilon_decay_type": "exp",
+                "epsilon_decay_rate": 1.0,
+                "epsilon_decay_fraction": 0.8
+            },
+            train_episodes=80000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=300,
+            eval_episodes=2000,
+            max_steps_eval=300,
+            verbose_every=10000,
+            render_one_episode=True,
+            render_pause=0.10,
+            env_kwargs={}
+        )
+
     else:
         print("Invalid mode:", mode)
         print(
             "Valid modes:\n"
             "  detMC4 | detMC10 | probMC4 | probMC10 | probMC4-moreTrain\n"
-            "  detMCup4 | detMCup10 | probMCup4 | probMCup10"
+            "  detMCup4 | detMCup10 | probMCup4 | probMCup10\n"
+            "  detSARSA4 | detSARSA10"
         )
         sys.exit(1)
 
@@ -391,7 +527,8 @@ if __name__ == "__main__":
         print(
             "Modes:\n"
             "  detMC4 | detMC10 | probMC4 | probMC10 | probMC4-moreTrain\n"
-            "  detMCup4 | detMCup10 | probMCup4 | probMCup10"
+            "  detMCup4 | detMCup10 | probMCup4 | probMCup10\n"
+            "  detSARSA4 | detSARSA10"
         )
         sys.exit(1)
 
