@@ -35,6 +35,14 @@ from sarsa import (
     evaluate_greedy_policy as eval_greedy_sarsa,
 )
 
+# --- Q-Learning (Task 3) imports ---
+from q_learning import (
+    q_learning_control_epsilon_greedy as q_learning_control_up,
+    greedy_action as greedy_action_q,
+    print_greedy_policy_grid as print_policy_q,
+    evaluate_greedy_policy as eval_greedy_q,
+)
+
 
 def run_episode_with_render(env, Q, renderer, greedy_action_fn, max_steps=200, pause=0.30):
     """
@@ -209,6 +217,78 @@ def run_sarsa_experiment(
             title=f"FrozenLake {n}x{n} (Greedy after SARSA)"
         )
         run_episode_with_render(env, Q, renderer, greedy_action_fn, max_steps=max_steps_eval, pause=render_pause)
+
+def run_q_learning_experiment(
+    env_class,
+    n,
+    holes,
+    env_seed,
+    q_learning_control_fn,
+    greedy_action_fn,
+    print_policy_fn,
+    eval_fn,
+    q_learning_kwargs=None,
+    # Common experiment settings:
+    train_episodes=30000,
+    gamma=0.99,
+    alpha=0.10,
+    max_steps_train=100,
+    eval_episodes=2000,
+    max_steps_eval=100,
+    verbose_every=3000,
+    render_one_episode=True,
+    render_pause=0.30,
+    env_kwargs=None,
+):
+    """
+    Runs Q-learning control on either deterministic or probabilistic environment,
+    depending on env_class passed in.
+
+    Behavior policy: epsilon-greedy (for action selection during training)
+    Target for update: greedy max_a' Q(S',a')  (off-policy)
+    """
+    env_kwargs = env_kwargs or {}
+    q_learning_kwargs = q_learning_kwargs or {}
+
+    print("\n" + "=" * 80)
+    print(f"Running Q-learning experiment: grid={n}x{n} | holes={len(holes)} | hole_ratio={len(holes)/(n*n):.2%}")
+    print(f"Environment: {env_class.__name__} | extra_args={env_kwargs}")
+    print(f"Q-learning implementation: {q_learning_control_fn.__module__}.{q_learning_control_fn.__name__} | q_learning_kwargs={q_learning_kwargs}")
+    print("=" * 80)
+
+    env = env_class(n=n, holes=holes, seed=env_seed, **env_kwargs)
+
+    # --- Train ---
+    Q, pi = q_learning_control_fn(
+        env,
+        num_episodes=train_episodes,
+        gamma=gamma,
+        alpha=alpha,
+        max_steps_per_episode=max_steps_train,
+        seed=0,
+        verbose_every=verbose_every,
+        **q_learning_kwargs
+    )
+
+    # --- Print policy ---
+    print("\nFinal greedy policy (grid):")
+    print_policy_fn(env, Q)
+
+    # --- Evaluate ---
+    sr = eval_fn(env, Q, episodes=eval_episodes, max_steps=max_steps_eval, seed=999)
+    print(f"\nFinal greedy success rate over {eval_episodes} episodes: {sr:.3f}")
+
+    # --- Render one episode (optional) ---
+    if render_one_episode:
+        renderer = FrozenLakeMatplotlibRenderer(
+            env,
+            bg_image_path=None,
+            pause=render_pause,
+            title=f"FrozenLake {n}x{n} (Greedy after Q-learning)"
+        )
+        run_episode_with_render(env, Q, renderer, greedy_action_fn, max_steps=max_steps_eval, pause=render_pause)
+
+
 
 
 def main(mode: str):
@@ -628,6 +708,121 @@ def main(mode: str):
             env_kwargs={"slip_prob": 0.2}
         )
 
+    # -------------------- Q-LEARNING (Task 3) --------------------
+    elif mode == "detQL4":
+        run_q_learning_experiment(
+            env_class=FrozenLakeEnvDet,
+            n=4,
+            holes=holes_4x4,
+            env_seed=40,
+            q_learning_control_fn=q_learning_control_up,
+            greedy_action_fn=greedy_action_q,
+            print_policy_fn=print_policy_q,
+            eval_fn=eval_greedy_q,
+            q_learning_kwargs={
+                "epsilon": 0.10,
+                "use_epsilon_decay": False,
+            },
+            train_episodes=30000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=100,
+            eval_episodes=2000,
+            max_steps_eval=100,
+            verbose_every=3000,
+            render_one_episode=True,
+            render_pause=0.30,
+            env_kwargs={}
+        )
+
+    elif mode == "detQL10":
+        run_q_learning_experiment(
+            env_class=FrozenLakeEnvDet,
+            n=10,
+            holes=holes_10x10,
+            env_seed=123,
+            q_learning_control_fn=q_learning_control_up,
+            greedy_action_fn=greedy_action_q,
+            print_policy_fn=print_policy_q,
+            eval_fn=eval_greedy_q,
+            q_learning_kwargs={
+                "use_epsilon_decay": True,
+                "epsilon_start": 0.3,
+                "epsilon_min": 0.1,
+                "epsilon_decay_type": "exp",
+                "epsilon_decay_rate": 0.6,
+                "epsilon_decay_fraction": 0.6
+            },
+            train_episodes=80000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=300,
+            eval_episodes=2000,
+            max_steps_eval=300,
+            verbose_every=10000,
+            render_one_episode=True,
+            render_pause=0.10,
+            env_kwargs={}
+        )
+    
+    
+    elif mode == "probQL4":
+        run_q_learning_experiment(
+            env_class=FrozenLakeEnvProb,
+            n=4,
+            holes=holes_4x4,
+            env_seed=40,
+            q_learning_control_fn=q_learning_control_up,
+            greedy_action_fn=greedy_action_q,
+            print_policy_fn=print_policy_q,
+            eval_fn=eval_greedy_q,
+            q_learning_kwargs={
+                "epsilon": 0.10,
+                "use_epsilon_decay": False,
+            },
+            train_episodes=30000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=100,
+            eval_episodes=2000,
+            max_steps_eval=100,
+            verbose_every=3000,
+            render_one_episode=True,
+            render_pause=0.30,
+            env_kwargs={"slip_prob": 0.2}
+        )
+
+
+    elif mode == "probQL10":
+        run_q_learning_experiment(
+            env_class=FrozenLakeEnvProb,
+            n=10,
+            holes=holes_10x10,
+            env_seed=123,
+            q_learning_control_fn=q_learning_control_up,
+            greedy_action_fn=greedy_action_q,
+            print_policy_fn=print_policy_q,
+            eval_fn=eval_greedy_q,
+            q_learning_kwargs={
+                "use_epsilon_decay": True,
+                "epsilon_start": 0.3,
+                "epsilon_min": 0.1,
+                "epsilon_decay_type": "exp",
+                "epsilon_decay_rate": 0.6,
+                "epsilon_decay_fraction": 0.6
+            },
+            train_episodes=80000,
+            gamma=0.99,
+            alpha=0.10,
+            max_steps_train=300,
+            eval_episodes=2000,
+            max_steps_eval=300,
+            verbose_every=10000,
+            render_one_episode=True,
+            render_pause=0.10,
+            env_kwargs={"slip_prob": 0.2}
+        )
+
     else:
         print("Invalid mode:", mode)
         print("Valid modes:\n" + "\n".join([
@@ -646,6 +841,10 @@ def main(mode: str):
             "  probSARSA4",
             "  probSARSA10",
             "  probSARSA10-long",
+            "  detQL4",
+            "  detQL10",
+            "  probQL4",
+            "  probQL10"
         ]))
         sys.exit(1)
 
@@ -669,6 +868,10 @@ if __name__ == "__main__":
             "  probSARSA4",
             "  probSARSA10",
             "  probSARSA10-long",
+            "  detQL4",
+            "  detQL10",
+            "  probQL4",
+            "  probQL10",
         ]))
         sys.exit(1)
 
